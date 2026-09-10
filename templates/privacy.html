@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy - TTYS</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="wordmark" href="/">TTYS <span>talk to yourself system</span></a>
+  <nav><a href="/">Editor</a><a href="/terms">Terms</a></nav>
+</header>
+<main class="prose">
+  <h1>Privacy</h1>
+  <p class="lede">Short version: your messages never leave this machine.</p>
+
+  <h3>Where your file goes</h3>
+  <p>
+    The export you upload is sent to a Flask server running on
+    <code>127.0.0.1</code>, which is this computer and nothing else. The file is
+    read into memory, parsed, and discarded. It is never written to disk, never
+    copied into a database, and never included in a log line.
+  </p>
+
+  <h3>What is kept, and for how long</h3>
+  <p>
+    While the server is running it holds the parsed messages and the word counts
+    of the identity you selected, in memory only. Pressing Start over clears
+    them. Stopping the server clears them. There is no cache and no session file
+    to clean up afterwards.
+  </p>
+
+  <h3>Network calls</h3>
+  <p>
+    This app makes no requests that leave your machine. There is no API key, no
+    account, no analytics, and no font or script loaded from a CDN. The
+    prediction model is an n-gram table built here in a fraction of a second,
+    and the chat replies are retrieved from your own message history, so there
+    is nothing to send anywhere.
+  </p>
+
+  <h3>Chat mode and the local model</h3>
+  <p>
+    Chat mode works with nothing installed: it finds the closest thing anyone
+    ever said to you and returns the reply you actually gave. If you install
+    Ollama, TTYS will additionally call it at <code>127.0.0.1:11434</code> to
+    adapt those replies to new questions. That is a local process on this
+    machine, not a hosted service, and the request never touches the network.
+    Your messages are in that prompt, so they reach the local model, and no
+    further.
+  </p>
+  <p>
+    Nothing is ever sent to a hosted model. There is no cloud fallback in this
+    build, deliberately, so there is no setting you can leave switched on by
+    mistake.
+  </p>
+
+  <h3>Other people in the chat</h3>
+  <p>
+    A group export contains other people's messages too. TTYS lists every sender
+    so you can pick yourself, and after that it uses only the messages belonging
+    to the identity you chose. The rest are held in memory for the life of the
+    process and then dropped. Since the export is not yours alone, treat it with
+    the care you would want the other people in that chat to use.
+  </p>
+</main>
+</body>
+</html>

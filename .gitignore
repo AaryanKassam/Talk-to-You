@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Real chat exports never belong in this repository.
+data/
+*_chat.txt
+*.html
+!templates/*.html
+# The fabricated demo conversation is the one exception.
+!samples/sample_chat.txt

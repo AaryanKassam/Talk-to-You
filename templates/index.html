@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TTYS</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="wordmark" href="/">TTYS <span>talk to yourself system</span></a>
+  <nav>
+    <button class="linkish" id="start-over" hidden>Start over</button>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ---------------------------------------------------- step 1 -->
+  <section id="screen-upload">
+    <p class="step-label">Step 1 of 3</p>
+    <h1>Type like you.</h1>
+    <p class="lede">
+      Add up to five chat exports. TTYS reads your own messages out of them,
+      builds an n-gram model of how you write, and predicts your next words
+      while you type.
+    </p>
+
+    <div id="upload-error" class="notice notice-error" hidden></div>
+
+    <div class="drop" id="drop">
+      <p>Drop your chat exports here</p>
+      <button class="btn btn-solid" id="choose">Choose files</button>
+      <input type="file" id="file" accept=".txt,.html,.htm" multiple hidden>
+      <p class="muted drop-formats">
+        WhatsApp <code>.txt</code>, or <code>.html</code> from iMessage,
+        Telegram Desktop, Instagram, Facebook Messenger or Discord.
+      </p>
+    </div>
+
+    <div id="filelist" class="filelist" hidden></div>
+
+    <div class="actionbar" id="upload-actions" hidden>
+      <span class="muted" id="upload-summary"></span>
+      <button class="btn btn-solid" id="to-identity">Continue</button>
+    </div>
+
+    <h3>Getting the file out of WhatsApp</h3>
+    <ol class="steps">
+      <li>Open the chat you want to use.</li>
+      <li>Tap the chat name at the top, then Export Chat.</li>
+      <li>Choose Without Media.</li>
+      <li>Save the <code>.txt</code> file, then add it here.</li>
+    </ol>
+
+    <h3>Other apps</h3>
+    <ol class="steps">
+      <li>iMessage: export the conversation with imessage-exporter as HTML,
+        then add the <code>.html</code> file for that chat.</li>
+      <li>Telegram Desktop: chat menu, Export chat history, format HTML.</li>
+      <li>Instagram or Facebook: Accounts Centre, Download your information,
+        format HTML, then use the <code>message_1.html</code> files.</li>
+      <li>Discord: export the channel with DiscordChatExporter as HTML.</li>
+    </ol>
+
+    <p class="privacy-line">
+      Everything runs on this machine. Files are parsed in memory, never written
+      to disk, and never sent to any external service. There is no API key and
+      no account. <a href="/privacy">Read the details</a>.
+    </p>
+  </section>
+
+  <!-- ---------------------------------------------------- step 2 -->
+  <section id="screen-identity" hidden>
+    <p class="step-label">Step 2 of 3</p>
+    <h1>Which of these are you?</h1>
+    <p class="lede" id="identity-lede"></p>
+
+    <p class="notice" id="identity-note">
+      WhatsApp labels people by whatever name was saved in the exporting phone's
+      contacts, so you can appear under more than one label across different
+      exports. Tick every label that is you and they will be merged into one
+      model. Labels are never merged automatically.
+    </p>
+
+    <div class="card">
+      <div class="senders" id="senders"></div>
+    </div>
+
+    <div class="actionbar">
+      <span class="muted" id="identity-summary">Nothing selected yet.</span>
+      <button class="btn btn-solid" id="build" disabled>Build model</button>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------- step 3 -->
+  <section id="screen-editor" hidden>
+    <p class="step-label">Step 3 of 3</p>
+    <h1 id="editor-title">Your keyboard</h1>
+    <p class="lede" id="editor-lede"></p>
+
+    <div class="segmented">
+      <button class="seg is-active" id="tab-write" type="button">Write like you</button>
+      <button class="seg" id="tab-chat" type="button">Talk to you</button>
+    </div>
+
+    <!-- ------------------------------------------------ write mode -->
+    <div id="mode-write">
+      <div id="thin-warning" class="notice notice-warn" hidden></div>
+
+      <div class="composer" id="composer">
+        <div class="mirror" id="mirror" aria-hidden="true"></div>
+        <textarea id="editor" spellcheck="false" autocomplete="off"
+                  placeholder="Start typing and it will finish your sentence."></textarea>
+        <div class="suggest" id="suggest"></div>
+      </div>
+
+      <div class="statusbar">
+        <span class="hint">
+          <span class="live-dot" id="dot"></span>
+          Press <kbd>Tab</kbd> to accept the faded text. <kbd>Esc</kbd> dismisses it.
+        </span>
+        <span class="stats" id="stats"></span>
+      </div>
+
+      <h2 class="profile-heading">Your style profile</h2>
+
+      <h3>Catch Phrases</h3>
+      <p class="muted section-note">Phrases you repeat. Click one to drop it in the editor.</p>
+      <div class="chiplist" id="sayings"></div>
+
+      <h3>Most Common Words</h3>
+      <p class="muted section-note">
+        Words you use far more than everyone else in these chats.
+      </p>
+      <div class="chiplist" id="favwords"></div>
+    </div>
+
+    <!-- ------------------------------------------------- chat mode -->
+    <div id="mode-chat" hidden>
+      <div class="notice" id="ollama-notice"></div>
+
+      <div class="chatlog" id="chatlog"></div>
+
+      <div class="chatbox">
+        <textarea id="chat-input" rows="1" spellcheck="false"
+                  placeholder="Say something and see what you would say back."></textarea>
+        <button class="btn btn-solid" id="send" type="button">Send</button>
+      </div>
+
+      <div class="statusbar">
+        <label class="toggle">
+          <input type="checkbox" id="use-model" class="tick">
+          <span id="use-model-label">Use local model</span>
+        </label>
+        <span class="stats" id="chat-stats"></span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+
+const S = {
+  words: [], mode: "append", ghost: "", ghostAllowed: true, selected: new Set(),
+  // The exact textarea value each of these was computed for. Anything else on
+  // screen is stale and must not be painted: that is what put a completion on
+  // top of the placeholder and left chips floating after the box lost focus.
+  ghostFor: null, wordsFor: null, focused: false,
+};
+let debounce = null;
+let seq = 0;
+// The model-written ghost arrives about half a second after the n-gram one, so
+// it needs its own timer and its own staleness counter.
+let refineTimer = null;
+let refineSeq = 0;
+
+function screen(name) {
+  for (const id of ["upload", "identity", "editor"]) {
+    $("#screen-" + id).hidden = id !== name;
+  }
+  $("#start-over").hidden = name === "upload";
+}
+
+/* ---------------------------------------------------------- step 1 */
+
+const drop = $("#drop");
+const fileInput = $("#file");
+let payload = null;
+
+$("#choose").addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) addFiles(fileInput.files);
+  fileInput.value = "";
+});
+
+drop.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  drop.classList.add("is-over");
+});
+drop.addEventListener("dragleave", () => drop.classList.remove("is-over"));
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  drop.classList.remove("is-over");
+  if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+});
+
+function uploadError(message) {
+  const box = $("#upload-error");
+  box.textContent = message;
+  box.hidden = false;
+}
+
+async function addFiles(files) {
+  $("#upload-error").hidden = true;
+  const button = $("#choose");
+  button.disabled = true;
+  button.innerHTML = '<span class="spinner"></span>Parsing';
+
+  const body = new FormData();
+  for (const f of files) body.append("files", f);
+
+  let res, data;
+  try {
+    res = await fetch("/api/upload", { method: "POST", body });
+    data = await res.json();
+  } catch (err) {
+    uploadError("Could not reach the local server. Is it still running?");
+    data = null;
+  }
+  button.disabled = false;
+  button.textContent = "Choose files";
+  if (!data) return;
+  if (!res.ok) {
+    uploadError(data.error || "That file could not be read.");
+    return;
+  }
+  payload = data;
+  renderFiles();
+}
+
+function renderFiles() {
+  const list = $("#filelist");
+  list.innerHTML = "";
+  list.hidden = payload.files.length === 0;
+  $("#upload-actions").hidden = payload.files.length === 0;
+
+  for (const f of payload.files) {
+    const row = document.createElement("div");
+    row.className = "filerow";
+    const name = document.createElement("span");
+    name.className = "filerow-name";
+    name.textContent = f.name;
+    const count = document.createElement("span");
+    count.className = "filerow-count";
+    count.textContent = f.count.toLocaleString() + " messages, read as " +
+                        f.format;
+    const rm = document.createElement("button");
+    rm.className = "linkish";
+    rm.textContent = "Remove";
+    rm.addEventListener("click", () => removeFile(f.name, rm));
+    row.append(name, count, rm);
+    list.appendChild(row);
+  }
+
+  const left = payload.max_files - payload.files.length;
+  $("#upload-summary").textContent =
+    payload.total.toLocaleString() + " messages across " +
+    payload.files.length + " export" + (payload.files.length === 1 ? "" : "s") +
+    (left > 0 ? ". You can add " + left + " more." : ". That is the maximum.");
+  $("#choose").disabled = left === 0;
+}
+
+async function removeFile(name, button) {
+  button.disabled = true;
+  button.textContent = "Removing";
+
+  const restore = (message) => {
+    button.disabled = false;
+    button.textContent = "Remove";
+    uploadError(message);
+  };
+
+  let res, data;
+  try {
+    res = await fetch("/api/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    data = await res.json();
+  } catch (err) {
+    restore("Could not reach the local server. Is it still running?");
+    return;
+  }
+  if (!res.ok) {
+    restore(data.error || "That export could not be removed.");
+    return;
+  }
+  payload = data;
+  S.selected.clear();
+  renderFiles();
+}
+
+$("#to-identity").addEventListener("click", () => {
+  renderSenders();
+  screen("identity");
+});
+
+/* ---------------------------------------------------------- step 2 */
+
+function renderSenders() {
+  $("#identity-lede").textContent =
+    payload.total.toLocaleString() + " messages from " +
+    payload.senders.length + " people across " +
+    payload.files.length + " export" + (payload.files.length === 1 ? "" : "s") + ".";
+
+  const list = $("#senders");
+  list.innerHTML = "";
+  for (const s of payload.senders) {
+    const row = document.createElement("label");
+    row.className = "sender" + (s.enough ? "" : " sender-thin");
+
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.className = "tick";
+    box.checked = S.selected.has(s.name);
+    box.addEventListener("change", () => {
+      if (box.checked) S.selected.add(s.name);
+      else S.selected.delete(s.name);
+      row.classList.toggle("is-picked", box.checked);
+      updateSelection();
+    });
+    row.classList.toggle("is-picked", box.checked);
+
+    const main = document.createElement("span");
+    main.className = "sender-main";
+    const name = document.createElement("span");
+    name.textContent = s.name;
+    main.appendChild(name);
+    if (payload.files.length > 1) {
+      const where = document.createElement("span");
+      where.className = "sender-files";
+      where.textContent = s.files.join(", ");
+      main.appendChild(where);
+    }
+
+    const count = document.createElement("span");
+    count.className = "sender-count";
+    count.textContent = s.count.toLocaleString() +
+      (s.enough ? " messages" : " messages, too few");
+
+    row.append(box, main, count);
+    list.appendChild(row);
+  }
+  updateSelection();
+}
+
+function updateSelection() {
+  const picked = payload.senders.filter((s) => S.selected.has(s.name));
+  const total = picked.reduce((a, s) => a + s.count, 0);
+  const button = $("#build");
+  button.disabled = picked.length === 0;
+
+  if (picked.length === 0) {
+    $("#identity-summary").textContent = "Nothing selected yet.";
+  } else {
+    $("#identity-summary").textContent =
+      picked.length + " label" + (picked.length === 1 ? "" : "s") +
+      " selected, " + total.toLocaleString() + " messages" +
+      (total < payload.min_messages
+        ? ". That is below " + payload.min_messages + ", so predictions will be thin."
+        : ".");
+  }
+}
+
+$("#build").addEventListener("click", async () => {
+  const button = $("#build");
+  button.disabled = true;
+  button.innerHTML = '<span class="spinner"></span>Building';
+
+  let res, data;
+  try {
+    res = await fetch("/api/identity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names: [...S.selected] }),
+    });
+    data = await res.json();
+  } catch (err) {
+    button.textContent = "Build model";
+    button.disabled = false;
+    $("#identity-summary").textContent =
+      "Could not reach the local server. Is it still running?";
+    return;
+  }
+  button.textContent = "Build model";
+  button.disabled = false;
+  if (!res.ok) {
+    $("#identity-summary").textContent =
+      data.error || "That model could not be built.";
+    return;
+  }
+  enterEditor(data);
+});
+
+/* ---------------------------------------------------------- step 3 */
+
+const ta = $("#editor");
+const mirror = $("#mirror");
+const sug = $("#suggest");
+const dot = $("#dot");
+
+function insertPhrase(text) {
+  const current = ta.value;
+  const sep = current && !/\s$/.test(current) ? " " : "";
+  ta.value = current + sep + text + " ";
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = ta.value.length;
+  S.ghost = "";
+  paint();
+  schedule();
+}
+
+function chipList(target, items, label) {
+  target.innerHTML = "";
+  if (!items.length) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "Not enough repetition in this data to find any.";
+    target.appendChild(empty);
+    return;
+  }
+  for (const item of items) {
+    const b = document.createElement("button");
+    b.className = "tag";
+    b.type = "button";
+    const main = document.createElement("span");
+    main.textContent = item.text || item.word;
+    const meta = document.createElement("span");
+    meta.className = "tag-meta";
+    meta.textContent = item.count + label;
+    b.append(main, meta);
+    b.addEventListener("click", () => insertPhrase(item.text || item.word));
+    target.appendChild(b);
+  }
+}
+
+function enterEditor(data) {
+  const st = data.stats;
+  $("#editor-title").textContent = "Typing as " + data.identity.join(" and ");
+  $("#editor-lede").textContent =
+    "Built from " + st.messages.toLocaleString() + " messages in " +
+    st.build_seconds + " seconds, plus " +
+    data.retrieval.pairs.toLocaleString() + " real reply pairs for chat mode.";
+
+  $("#stats").innerHTML = "";
+  const rows = [
+    ["messages", st.messages.toLocaleString()],
+    ["vocabulary", st.vocab.toLocaleString()],
+    ["build", st.build_seconds + "s"],
+  ];
+  if (data.ollama && data.ollama.available && data.ollama.fast_model) {
+    rows.push(["writing the ghost text", data.ollama.fast_model]);
+  }
+  for (const [label, value] of rows) {
+    const el = document.createElement("span");
+    el.textContent = label.startsWith("writing") ? label + ": " + value
+                                                 : value + " " + label;
+    $("#stats").appendChild(el);
+  }
+
+  const warn = $("#thin-warning");
+  if (!st.enough_data) {
+    warn.textContent =
+      "Only " + st.messages.toLocaleString() + " messages. Below about " +
+      st.min_messages + " the model has not seen enough writing, so expect the " +
+      "predictions to be thin or incoherent.";
+    warn.hidden = false;
+  } else {
+    warn.hidden = true;
+  }
+
+  CHAT.retrieval = data.retrieval;
+  CHAT.ollama = data.ollama;
+  CHAT.history = [];
+  $("#chatlog").innerHTML = "";
+  renderOllama();
+  renderChatEmpty();
+
+  chipList($("#sayings"), data.profile.sayings, "x");
+  chipList($("#favwords"), data.profile.words, "x");
+
+  screen("editor");
+  paint();
+  ta.focus();
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/* The mirror holds the same characters as the textarea with the same font
+   metrics, so it lays out identically. The zero-width anchor sits exactly at
+   the caret, which is how the suggestion popup finds its coordinates. */
+function paint() {
+  const text = ta.value;
+  const caret = ta.selectionStart;
+  const before = text.slice(0, caret);
+  const after = text.slice(caret);
+  const showGhost = S.focused && after === "" && S.ghost &&
+                    S.ghostAllowed && S.ghostFor === text;
+
+  mirror.innerHTML =
+    escapeHtml(before) +
+    '<span class="anchor" id="anchor"></span>' +
+    (showGhost ? '<span class="ghost">' + escapeHtml(S.ghost) + "</span>" : "") +
+    escapeHtml(after) +
+    "​";
+
+  placeSuggest();
+}
+
+function placeSuggest() {
+  const anchor = document.getElementById("anchor");
+  if (!anchor || !S.words.length || !S.focused || S.wordsFor !== ta.value) {
+    sug.classList.remove("is-shown");
+    return;
+  }
+  sug.classList.add("is-shown");
+
+  const gap = 6;
+  const lineHeight = anchor.offsetHeight;
+  let top = anchor.offsetTop - sug.offsetHeight - gap;
+  if (top < 0) top = anchor.offsetTop + lineHeight + gap; // flip below on line 1
+
+  const maxLeft = $("#composer").clientWidth - sug.offsetWidth - 4;
+  sug.style.top = top + "px";
+  sug.style.left = Math.max(4, Math.min(anchor.offsetLeft, maxLeft)) + "px";
+}
+
+function renderChips() {
+  sug.innerHTML = "";
+  for (const word of S.words) {
+    const chip = document.createElement("button");
+    chip.className = "chip";
+    chip.type = "button";
+    chip.textContent = word;
+    chip.addEventListener("mousedown", (e) => {
+      e.preventDefault(); // keep focus in the textarea
+      applyWord(word);
+    });
+    sug.appendChild(chip);
+  }
+}
+
+function applyWord(word) {
+  let text = ta.value.slice(0, ta.selectionStart);
+  const rest = ta.value.slice(ta.selectionStart);
+
+  if (S.mode === "extend") {
+    text = text.replace(/[A-Za-z0-9_'’]+$/, word);
+  } else if (text && !/\s$/.test(text)) {
+    text = text + " " + word;
+  } else {
+    text = text + word;
+  }
+  text += " ";
+
+  ta.value = text + rest;
+  ta.selectionStart = ta.selectionEnd = text.length;
+  S.ghost = "";
+  S.ghostFor = S.wordsFor = null;
+  paint();
+  schedule();
+}
+
+function acceptGhost() {
+  if (!S.ghost) return;
+  ta.value = ta.value + S.ghost;
+  ta.selectionStart = ta.selectionEnd = ta.value.length;
+  S.ghost = "";
+  S.ghostFor = S.wordsFor = null;
+  paint();
+  schedule();
+}
+
+function schedule() {
+  clearTimeout(debounce);
+  clearTimeout(refineTimer);
+  refineSeq++;              // orphan any model completion still in flight
+  dot.classList.add("is-on");
+  debounce = setTimeout(predict, 180);
+}
+
+async function predict() {
+  const text = ta.value;
+
+  // An empty box has a placeholder in it. Predicting here paints a completion
+  // straight over that placeholder, which is what the overlapping text was.
+  if (!text.trim()) {
+    seq++;
+    dot.classList.remove("is-on");
+    S.words = [];
+    S.ghost = "";
+    S.ghostFor = S.wordsFor = null;
+    renderChips();
+    paint();
+    return;
+  }
+
+  const atEnd = ta.selectionStart === text.length;
+  const mine = ++seq;
+
+  let res, data;
+  try {
+    res = await fetch("/api/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, at_end: atEnd }),
+    });
+    data = await res.json();
+  } catch (err) {
+    dot.classList.remove("is-on");
+    return;
+  }
+  if (mine !== seq) return; // a newer keystroke already went out
+  dot.classList.remove("is-on");
+  if (!res.ok) return;
+
+  S.words = data.words;
+  S.mode = data.mode;
+  S.ghost = atEnd ? data.completion : "";
+  S.ghostFor = atEnd ? text : null;
+  S.wordsFor = text;
+  renderChips();
+  paint();
+
+  // The n-gram ghost is up instantly. Now ask the local model for one that
+  // actually reads as English across the whole sentence.
+  if (atEnd) scheduleRefine(text);
+}
+
+function scheduleRefine(text) {
+  clearTimeout(refineTimer);
+  if (!CHAT.ollama || !CHAT.ollama.available) return;
+  refineTimer = setTimeout(() => refine(text), 320);
+}
+
+async function refine(text) {
+  if (ta.value !== text || !S.focused) return;
+  const mine = ++refineSeq;
+  dot.classList.add("is-on");
+
+  let res, data;
+  try {
+    res = await fetch("/api/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, model: CHAT.ollama.fast_model }),
+    });
+    data = await res.json();
+  } catch (err) {
+    dot.classList.remove("is-on");
+    return;
+  }
+  dot.classList.remove("is-on");
+
+  // Anything typed since this went out makes the answer stale.
+  if (mine !== refineSeq || ta.value !== text || !res.ok) return;
+  if (!data.completion) return;   // no model, or it had nothing; keep the n-gram
+
+  S.ghost = data.completion;
+  S.ghostFor = text;
+  paint();
+}
+
+ta.addEventListener("input", () => {
+  S.ghostAllowed = true;
+  paint();
+  schedule();
+});
+
+ta.addEventListener("keydown", (e) => {
+  // The same conditions paint() uses to draw the ghost. Without the
+  // ghostFor check, Tab inserts a completion that is no longer on screen
+  // because the text moved on under it.
+  if (e.key === "Tab" && S.ghost && S.ghostAllowed &&
+      S.ghostFor === ta.value && ta.selectionStart === ta.value.length) {
+    e.preventDefault();
+    acceptGhost();
+  } else if (e.key === "Escape") {
+    S.ghostAllowed = false;
+    S.words = [];
+    renderChips();
+    paint();
+  }
+});
+
+for (const evt of ["click", "keyup", "select"]) {
+  ta.addEventListener(evt, paint);
+}
+
+ta.addEventListener("focus", () => {
+  S.focused = true;
+  S.ghostAllowed = true;
+  if (ta.value.trim()) schedule();
+});
+
+// Clicking away leaves nothing hanging over the box.
+ta.addEventListener("blur", () => {
+  S.focused = false;
+  clearTimeout(debounce);
+  clearTimeout(refineTimer);
+  refineSeq++;
+  dot.classList.remove("is-on");
+  paint();
+});
+window.addEventListener("resize", placeSuggest);
+
+
+/* ------------------------------------------------------- chat mode */
+
+const CHAT = { history: [], ollama: { available: false, model: null },
+               retrieval: { pairs: 0 }, busy: false };
+
+const chatInput = $("#chat-input");
+const chatlog = $("#chatlog");
+
+function setMode(mode) {
+  const write = mode === "write";
+  $("#mode-write").hidden = !write;
+  $("#mode-chat").hidden = write;
+  $("#tab-write").classList.toggle("is-active", write);
+  $("#tab-chat").classList.toggle("is-active", !write);
+  (write ? ta : chatInput).focus();
+}
+
+$("#tab-write").addEventListener("click", () => setMode("write"));
+$("#tab-chat").addEventListener("click", () => setMode("chat"));
+
+function renderOllama() {
+  const notice = $("#ollama-notice");
+  const box = $("#use-model");
+  const label = $("#use-model-label");
+
+  $("#chat-stats").textContent =
+    CHAT.retrieval.pairs.toLocaleString() + " real reply pairs indexed";
+
+  if (CHAT.ollama.available && CHAT.ollama.model) {
+    box.disabled = false;
+    box.checked = true;
+    label.textContent = "Use " + CHAT.ollama.model + " to adapt your replies";
+    notice.hidden = true;
+    return;
+  }
+
+  box.checked = false;
+  box.disabled = true;
+  label.textContent = "No local model available";
+  notice.hidden = false;
+  notice.innerHTML = "";
+
+  const text = document.createElement("span");
+  text.textContent = CHAT.ollama.available
+    ? "Ollama is running but has no models pulled. Replies are coming straight from your real message history. Run ollama pull llama3.2:3b to let a local model adapt them."
+    : "Ollama is not running, so replies come straight from your real message history, word for word. To let a local model adapt them to new questions: install Ollama, then run ollama pull llama3.2:3b. Nothing leaves this machine either way.";
+  notice.appendChild(text);
+  notice.appendChild(document.createTextNode(" "));
+
+  const again = document.createElement("button");
+  again.className = "linkish";
+  again.textContent = "Check again";
+  again.addEventListener("click", async () => {
+    again.textContent = "Checking";
+    try {
+      const res = await fetch("/api/ollama");
+      if (!res.ok) throw new Error("bad status");
+      CHAT.ollama = await res.json();
+    } catch (err) {
+      again.textContent = "Check again";
+      return;
+    }
+    renderOllama();
+  });
+  notice.appendChild(again);
+}
+
+function renderChatEmpty() {
+  const empty = document.createElement("div");
+  empty.className = "chat-empty";
+  const p = document.createElement("p");
+  p.className = "muted";
+  p.textContent = "Say something to them. Try one of these:";
+  empty.appendChild(p);
+
+  const row = document.createElement("div");
+  row.className = "chiplist";
+  for (const starter of ["that ref is terrible",
+                         "did you see that goal",
+                         "who wins the world cup"]) {
+    const b = document.createElement("button");
+    b.className = "tag";
+    b.type = "button";
+    b.textContent = starter;
+    b.addEventListener("click", () => {
+      chatInput.value = starter;
+      sendChat();
+    });
+    row.appendChild(b);
+  }
+  empty.appendChild(row);
+  chatlog.appendChild(empty);
+}
+
+function addMessage(role, text) {
+  const el = document.createElement("div");
+  el.className = "msg msg-" + role;
+  const body = document.createElement("div");
+  body.className = "msg-body";
+  body.textContent = text;
+  el.appendChild(body);
+  chatlog.appendChild(el);
+  chatlog.scrollTop = chatlog.scrollHeight;
+  return el;
+}
+
+function addSourceLine(el, data) {
+  const meta = document.createElement("div");
+  meta.className = "msg-meta";
+
+  if (data.source === "model") {
+    meta.textContent = data.model + ", grounded in " +
+      data.examples.length + " of your real replies.";
+  } else if (data.source === "retrieval") {
+    meta.textContent = "Your actual reply to " + data.examples[0].who +
+      ", matched at " + data.match + ".";
+  } else {
+    meta.textContent = "No close match in your history.";
+  }
+
+  if (data.examples.length) {
+    meta.appendChild(document.createTextNode(" "));
+    const toggle = document.createElement("button");
+    toggle.className = "linkish";
+    toggle.textContent = "Show what it matched";
+    const panel = document.createElement("div");
+    panel.className = "examples";
+    panel.hidden = true;
+    for (const ex of data.examples) {
+      const row = document.createElement("div");
+      row.className = "example";
+      const head = document.createElement("div");
+      head.className = "example-head";
+      head.textContent = ex.score + "  " + ex.who + ": " + ex.prompt;
+      const said = document.createElement("div");
+      said.className = "example-reply";
+      said.textContent = "you said: " + ex.reply;
+      row.append(head, said);
+      panel.appendChild(row);
+    }
+    toggle.addEventListener("click", () => {
+      panel.hidden = !panel.hidden;
+      toggle.textContent = panel.hidden ? "Show what it matched" : "Hide";
+    });
+    meta.appendChild(toggle);
+    el.append(meta, panel);
+  } else {
+    el.appendChild(meta);
+  }
+  chatlog.scrollTop = chatlog.scrollHeight;
+}
+
+function addTyping() {
+  const el = document.createElement("div");
+  el.className = "msg msg-them";
+  const dots = document.createElement("div");
+  dots.className = "typing";
+  dots.innerHTML = "<i></i><i></i><i></i>";
+  el.appendChild(dots);
+  chatlog.appendChild(el);
+  chatlog.scrollTop = chatlog.scrollHeight;
+  return el;
+}
+
+async function sendChat() {
+  const message = chatInput.value.trim();
+  if (!message || CHAT.busy) return;
+
+  const empty = chatlog.querySelector(".chat-empty");
+  if (empty) empty.remove();
+
+  CHAT.busy = true;
+  $("#send").disabled = true;
+  chatInput.value = "";
+  autoGrowChat();
+  addMessage("you", message);
+  const pending = addTyping();
+
+  let res, data;
+  try {
+    res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        history: CHAT.history,
+        use_model: $("#use-model").checked,
+        model: CHAT.ollama.model,
+      }),
+    });
+    data = await res.json();
+  } catch (err) {
+    pending.remove();
+    addMessage("them", "Could not reach the local server.");
+    CHAT.busy = false;
+    $("#send").disabled = false;
+    return;
+  }
+
+  pending.remove();
+  CHAT.busy = false;
+  $("#send").disabled = false;
+
+  if (!res.ok) {
+    addMessage("them", data.error || "Something went wrong.");
+    return;
+  }
+
+  const text = data.reply ||
+    "Nothing in your history is close enough to that, and no local model is running.";
+  const el = addMessage("them", text);
+  addSourceLine(el, data);
+
+  if (data.reply) {
+    CHAT.history.push({ role: "user", text: message });
+    CHAT.history.push({ role: "assistant", text: data.reply });
+  }
+}
+
+function autoGrowChat() {
+  chatInput.style.height = "auto";
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 160) + "px";
+}
+
+$("#send").addEventListener("click", sendChat);
+chatInput.addEventListener("input", autoGrowChat);
+chatInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+});
+
+/* ------------------------------------------------------------ misc */
+
+$("#start-over").addEventListener("click", async () => {
+  await fetch("/api/reset", { method: "POST" });
+  ta.value = "";
+  payload = null;
+  S.words = [];
+  S.ghost = "";
+  S.selected.clear();
+  CHAT.history = [];
+  chatlog.innerHTML = "";
+  setMode("write");
+  fileInput.value = "";
+  $("#filelist").hidden = true;
+  $("#upload-actions").hidden = true;
+  $("#choose").disabled = false;
+  $("#upload-error").hidden = true;
+  renderChips();
+  screen("upload");
+});
+</script>
+</body>
+</html>

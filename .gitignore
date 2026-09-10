@@ -2,6 +2,11 @@
 __pycache__/
 *.pyc
 
+# Editor state
+.vscode/
+.idea/
+.DS_Store
+
 # Real chat exports never belong in this repository.
 data/
 *_chat.txt

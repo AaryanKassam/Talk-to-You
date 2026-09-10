@@ -121,7 +121,7 @@
       <div class="statusbar">
         <span class="hint">
           <span class="live-dot" id="dot"></span>
-          Press <kbd>Tab</kbd> to accept the faded text. <kbd>Esc</kbd> dismisses it.
+          <span id="editor-hint"></span>
         </span>
         <span class="stats" id="stats"></span>
       </div>
@@ -409,7 +409,14 @@ $("#build").addEventListener("click", async () => {
       data.error || "That model could not be built.";
     return;
   }
-  enterEditor(data);
+  try {
+    enterEditor(data);
+  } catch (err) {
+    // Without this, anything thrown in here leaves the button looking dead
+    // and gives no clue why.
+    $("#identity-summary").textContent =
+      "The model was built but the editor failed to open: " + err.message;
+  }
 });
 
 /* ---------------------------------------------------------- step 3 */

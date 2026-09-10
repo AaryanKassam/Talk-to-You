@@ -16,6 +16,13 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64 MB across all files
 
 MAX_FILES = 5
+
+# Inline sentence completion is implemented but off. Without a local model the
+# n-gram writes completions that ignore the sentence, and with one it needs
+# Ollama installed, so leaving it on means most people meet the bad version
+# first. Flip this to re-enable it; nothing else has to change. Next-word
+# suggestions are unaffected and always run.
+GHOST_TEXT = False
 TEXT_EXTS = (".txt",)
 HTML_EXTS = (".html", ".htm")
 
@@ -177,6 +184,7 @@ def identity():
         profile=model.profile,
         retrieval=index.stats(),
         ollama=persona.status(),
+        features={"ghost_text": GHOST_TEXT},
     )
 
 
@@ -190,10 +198,13 @@ def predict():
     text = payload.get("text", "")
     at_end = bool(payload.get("at_end", True))
     suggestion = model.suggest(text, k=3)
+    completion = ""
+    if GHOST_TEXT and at_end:
+        completion = model.complete(text, max_words=8)
     return jsonify(
         words=suggestion["words"],
         mode=suggestion["mode"],
-        completion=model.complete(text, max_words=8) if at_end else "",
+        completion=completion,
     )
 
 
@@ -240,6 +251,9 @@ def complete():
     chips come from the n-gram in under a millisecond; this runs only when
     typing pauses.
     """
+    if not GHOST_TEXT:
+        return jsonify(completion="", source="disabled")
+
     style: StyleModel = STATE["model"]
     if style is None:
         return jsonify(error="No model has been built yet."), 409

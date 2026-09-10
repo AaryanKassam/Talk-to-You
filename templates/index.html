@@ -172,6 +172,9 @@ const S = {
   // screen is stale and must not be painted: that is what put a completion on
   // top of the placeholder and left chips floating after the box lost focus.
   ghostFor: null, wordsFor: null, focused: false,
+  // Set from the server. With ghost text off, next-word chips carry the editor
+  // on their own and nothing is drawn behind the caret.
+  ghostEnabled: false,
 };
 let debounce = null;
 let seq = 0;
@@ -453,6 +456,10 @@ function chipList(target, items, label) {
 
 function enterEditor(data) {
   const st = data.stats;
+  S.ghostEnabled = Boolean(data.features && data.features.ghost_text);
+  $("#editor-hint").innerHTML = S.ghostEnabled
+    ? 'Press <kbd>Tab</kbd> to accept the faded text. <kbd>Esc</kbd> dismisses it.'
+    : 'Click a suggestion above the cursor to use it. <kbd>Esc</kbd> hides them.';
   $("#editor-title").textContent = "Typing as " + data.identity.join(" and ");
   $("#editor-lede").textContent =
     "Built from " + st.messages.toLocaleString() + " messages in " +
@@ -465,7 +472,8 @@ function enterEditor(data) {
     ["vocabulary", st.vocab.toLocaleString()],
     ["build", st.build_seconds + "s"],
   ];
-  if (data.ollama && data.ollama.available && data.ollama.fast_model) {
+  if (S.ghostEnabled && data.ollama && data.ollama.available &&
+      data.ollama.fast_model) {
     rows.push(["writing the ghost text", data.ollama.fast_model]);
   }
   for (const [label, value] of rows) {
@@ -513,7 +521,7 @@ function paint() {
   const caret = ta.selectionStart;
   const before = text.slice(0, caret);
   const after = text.slice(caret);
-  const showGhost = S.focused && after === "" && S.ghost &&
+  const showGhost = S.ghostEnabled && S.focused && after === "" && S.ghost &&
                     S.ghostAllowed && S.ghostFor === text;
 
   mirror.innerHTML =
@@ -643,11 +651,12 @@ async function predict() {
 
   // The n-gram ghost is up instantly. Now ask the local model for one that
   // actually reads as English across the whole sentence.
-  if (atEnd) scheduleRefine(text);
+  if (S.ghostEnabled && atEnd) scheduleRefine(text);
 }
 
 function scheduleRefine(text) {
   clearTimeout(refineTimer);
+  if (!S.ghostEnabled) return;
   if (!CHAT.ollama || !CHAT.ollama.available) return;
   refineTimer = setTimeout(() => refine(text), 320);
 }
@@ -690,7 +699,7 @@ ta.addEventListener("keydown", (e) => {
   // The same conditions paint() uses to draw the ghost. Without the
   // ghostFor check, Tab inserts a completion that is no longer on screen
   // because the text moved on under it.
-  if (e.key === "Tab" && S.ghost && S.ghostAllowed &&
+  if (e.key === "Tab" && S.ghostEnabled && S.ghost && S.ghostAllowed &&
       S.ghostFor === ta.value && ta.selectionStart === ta.value.length) {
     e.preventDefault();
     acceptGhost();

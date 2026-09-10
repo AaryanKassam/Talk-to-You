@@ -126,7 +126,7 @@ class StyleModel:
 
     # -- distribution ----------------------------------------------------
 
-    def _dist(self, context: list[str]) -> dict[str, float]:
+    def _dist(self, context: list[str], prefix: str = "") -> dict[str, float]:
         """P(next word) given the recent context, blended across orders.
 
         Starts from the unigram distribution and folds in each longer context
@@ -141,6 +141,11 @@ class StyleModel:
         keys = [(n, tuple(padded[-n:])) for n in range(1, ORDER + 1)]
 
         candidates = set(self.top_unigrams)
+        if prefix:
+            # The candidate set is otherwise capped at the commonest words, so
+            # a rarer word that completes what is being typed was invisible:
+            # "tues" found nothing and was judged a finished word.
+            candidates.update(w for w in self.unigram if w.startswith(prefix))
         matched = []
         for n, key in keys:
             counter = self.ctx[n].get(key)
@@ -185,7 +190,7 @@ class StyleModel:
         if not prefix:
             return context, ""
 
-        dist = self._dist(context)
+        dist = self._dist(context, prefix)
         best_extension = 0.0
         for word, p in dist.items():
             if word in (START, END) or is_emoji(word):
@@ -198,10 +203,14 @@ class StyleModel:
         return context, prefix
 
     def _ranked(self, context: list[str], prefix: str, k: int) -> list[str]:
-        scored = sorted(self._dist(context).items(), key=lambda kv: -kv[1])
+        scored = sorted(self._dist(context, prefix).items(), key=lambda kv: -kv[1])
         out = []
         for tok, _ in scored:
             if tok in (END, START) or is_emoji(tok):
+                continue
+            # Punctuation is a real next token but a useless thing to offer as
+            # a word to click, and these are now the editor's only suggestions.
+            if not tok[0].isalnum():
                 continue
             if prefix and (not tok.startswith(prefix) or tok == prefix):
                 continue

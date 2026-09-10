@@ -4,16 +4,16 @@ Talk To Yourself System.
 
 A predictive keyboard and chat partner built from your own message history.
 Add a chat export, pick which sender is you, and TTYS models how you write, then
-finishes your sentences as you type and answers as you would.
+suggests your next word as you type and answers as you would.
 
 Everything runs on your machine. No API key, no account, no upload.
 
 ```
-you type   im down for
-suggests   im down for tuesday if the pitch is free
+you type   ill book the            you type   tues
+suggests   pitch  whole  dark      suggests   tuesday
 
 you say    who's sorting the pitch then
-replies    ill do it, same place 7pm
+replies    ill book the pitch, same place 7pm
 ```
 
 ## Privacy
@@ -47,9 +47,9 @@ python3 -m venv .venv
 Open http://127.0.0.1:5001 and add `samples/sample_chat.txt`, then pick
 Sam Okafor. To use your own history, export a chat and add that instead.
 
-Sentence completion and chat replies need a local model. Without one the app
-still runs: next-word suggestions work from the n-gram, and chat answers with
-your own real replies, retrieved verbatim.
+Next-word suggestions need nothing but Python. Chat replies read better with a
+local model, but without one the app still answers using your own real replies,
+retrieved verbatim.
 
 ```bash
 curl -Lo ollama.tgz https://github.com/ollama/ollama/releases/latest/download/ollama-darwin.tgz
@@ -116,23 +116,19 @@ returned verbatim. Conversation history is carried into both the prompt and the
 retrieval query, so a follow-up like "who's sorting it then" still knows what
 "it" refers to.
 
-**Inline completion** is staged. Next-word suggestions come from the n-gram in
-under a millisecond on every keystroke. About 300ms after typing stops, the local
-model returns a completion that reads across the whole sentence and replaces it.
-Half-typed words stay with the n-gram, which extends a prefix correctly, where
-the model ignores the partial word and starts a new phrase.
+**The editor** offers the three likeliest next words above the cursor, from the
+n-gram, in under a millisecond on every keystroke. Half typed words are extended
+instead: `tues` becomes `tuesday`. Whole sentence ghost text is implemented and
+turned off, behind `GHOST_TEXT` in `app.py`. The n-gram alone writes completions
+that ignore the sentence it is completing, and the version that reads properly
+needs a local model, so shipping it on by default means most people meet the bad
+one first.
 
-Two findings worth recording, because both were counterintuitive:
-
-- **Listing someone's catchphrases in a prompt makes a small model recite them.**
-  An early version included "phrases they repeat" and it parroted one back in 5
-  of 8 replies regardless of the question. The examples carry the voice; the
-  lists are gone.
-- **Style examples retrieved by similarity are worse than a fixed sample.**
-  Retrieval is weakest exactly when it matters: once a sentence has drifted into
-  neutral English, the nearest real messages score near zero and push back on
-  nothing. A fixed anchor sample is also the same prompt every time, so it hits
-  the prefix cache and runs twice as fast, at 481ms against 1103ms.
+One finding worth recording, because it was counterintuitive: **listing
+someone's catchphrases in a prompt makes a small model recite them.** An early
+version of the chat prompt included "phrases they repeat", and it parroted one
+back in 5 of 8 replies regardless of the question. The examples carry the voice
+on their own; the lists are gone.
 
 ## Numbers
 
@@ -145,7 +141,6 @@ Measured on a real 972 KB WhatsApp export and a 8 MB iMessage export.
 | Timestamps parsed | 100% of both |
 | Style model build | 0.15 s |
 | Next-word suggestion | under 1 ms |
-| Inline sentence completion | 413 ms |
 | Chat reply | 0.4 s |
 | Retrieval relevant vs unrelated | 18/18 on a hand built probe set |
 
@@ -158,6 +153,7 @@ Measured on a real 972 KB WhatsApp export and a 8 MB iMessage export.
 - Catch phrase extraction slides a window over repeated sentences, so on a
   corpus with many identical messages it can surface fragments rather than whole
   phrases.
-- Sentence completion and chat quality depend on the local model. `llama3.2:3b`
-  handles completion well; `qwen2.5:7b` is better at chat but degenerates on
-  completion.
+- Whole sentence ghost text is off. It needs a local model to be worth using,
+  and the n-gram fallback is not good enough to ship in its place.
+- Chat quality depends on the local model. `qwen2.5:7b` holds a voice across a
+  long answer where `llama3.2:3b` invents details.

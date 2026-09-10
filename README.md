@@ -2,9 +2,15 @@
 
 Talk To Yourself System.
 
+Choose "Talk to you":
+Build a model that you can speak to, which speaks back just like the person you selected.
+If you chose yourself, the TTYS model would answer as you would. 
+
+Choose "Write like you":
+
 A predictive keyboard and chat partner built from your own message history.
 Add a chat export, pick which sender is you, and TTYS models how you write, then
-suggests your next word as you type and answers as you would.
+suggests your next word as you type.
 
 ## Try it
 

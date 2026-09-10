@@ -41,6 +41,14 @@
       </p>
     </div>
 
+    <div class="sample-row">
+      <span class="muted">
+        No export to hand? Try it on a fictional conversation between three
+        people who each write very differently.
+      </span>
+      <button class="btn btn-quiet" id="use-sample">Use the sample</button>
+    </div>
+
     <div id="filelist" class="filelist" hidden></div>
 
     <div class="actionbar" id="upload-actions" hidden>
@@ -197,6 +205,32 @@ const fileInput = $("#file");
 let payload = null;
 
 $("#choose").addEventListener("click", () => fileInput.click());
+
+$("#use-sample").addEventListener("click", async () => {
+  const button = $("#use-sample");
+  $("#upload-error").hidden = true;
+  button.disabled = true;
+  button.innerHTML = '<span class="spinner"></span>Loading';
+
+  let res, data;
+  try {
+    res = await fetch("/api/sample", { method: "POST" });
+    data = await res.json();
+  } catch (err) {
+    button.disabled = false;
+    button.textContent = "Use the sample";
+    uploadError("Could not reach the local server. Is it still running?");
+    return;
+  }
+  button.disabled = false;
+  button.textContent = "Use the sample";
+  if (!res.ok) {
+    uploadError(data.error || "The sample could not be loaded.");
+    return;
+  }
+  payload = data;
+  renderFiles();
+});
 fileInput.addEventListener("change", () => {
   if (fileInput.files.length) addFiles(fileInput.files);
   fileInput.value = "";
@@ -974,6 +1008,11 @@ chatInput.addEventListener("keydown", (e) => {
 });
 
 /* ------------------------------------------------------------ misc */
+
+// The server holds parsed exports in memory for the life of the process, so a
+// fresh page has to clear them. Without this, opening the page and uploading
+// appends to whatever the last session left behind.
+fetch("/api/reset", { method: "POST" }).catch(() => {});
 
 $("#start-over").addEventListener("click", async () => {
   await fetch("/api/reset", { method: "POST" });

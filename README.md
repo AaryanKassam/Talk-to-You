@@ -14,8 +14,20 @@ python3 -m venv .venv
 ./.venv/bin/python app.py
 ```
 
-Open http://127.0.0.1:5001 and add `samples/sample_chat.txt`, then pick
-Sam Okafor. To use your own history, export a chat and add that instead.
+Open http://127.0.0.1:5001. Press **Use the sample** to load a fictional group
+chat, then pick a name. The three people in it write very differently on
+purpose, so the same question comes back three ways:
+
+```
+you playing thursday?
+
+  Jordan Ruiz     yea im in son
+  Cody Hargrove   sure thing, fixin to be there
+  Priya Raman     Yes, I should be free.
+```
+
+To use your own history, export a chat and add the file instead. The sample is
+never loaded unless you ask for it.
 
 Next-word suggestions need nothing but Python. Chat replies read better with a
 local model, but without one the app still answers using your own real replies,
@@ -143,7 +155,7 @@ design assumes that data must never leave the machine it was exported on.
   mistake.
 - **No chat data is in this repository.** Exports are gitignored, and every
   example in this README and in the app comes from `samples/sample_chat.txt`, a
-  fabricated conversation between four invented people.
+  fabricated conversation between three invented people.
 
 Cloning this repository gives you the code and the fictional sample. It gives
 you nothing about anyone's real conversations.

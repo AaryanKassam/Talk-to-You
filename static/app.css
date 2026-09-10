@@ -608,3 +608,13 @@ code { font-family: var(--mono); font-size: var(--t-sm); color: var(--text); }
 .toggle input:disabled { cursor: default; }
 
 .drop-formats { margin: var(--s-4) 0 0; }
+
+.sample-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-soft);
+}

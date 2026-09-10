@@ -6,6 +6,8 @@ in memory and never written to disk.
 
 from flask import Flask, jsonify, render_template, request
 
+from pathlib import Path
+
 import html_parser
 import persona
 from model import MIN_MESSAGES, StyleModel
@@ -23,6 +25,7 @@ MAX_FILES = 5
 # first. Flip this to re-enable it; nothing else has to change. Next-word
 # suggestions are unaffected and always run.
 GHOST_TEXT = False
+SAMPLE_PATH = Path(__file__).resolve().parent / "samples" / "sample_chat.txt"
 TEXT_EXTS = (".txt",)
 HTML_EXTS = (".html", ".htm")
 
@@ -138,6 +141,32 @@ def upload():
     STATE["model"] = None
     STATE["identity"] = None
     return jsonify(added=added, **sender_payload())
+
+
+@app.post("/api/sample")
+def load_sample():
+    """Add the bundled fictional conversation, so the app can be tried with no
+    personal data at all. It is only ever loaded on request."""
+    if not SAMPLE_PATH.exists():
+        return jsonify(
+            error="The sample conversation is missing from this checkout."
+        ), 404
+    if any(f["name"] == SAMPLE_PATH.name for f in STATE["files"]):
+        return jsonify(error="The sample has already been added."), 400
+    if len(STATE["files"]) >= MAX_FILES:
+        return jsonify(error=f"You can add at most {MAX_FILES} exports."), 400
+
+    messages = parse_text(SAMPLE_PATH.read_text(encoding="utf-8", errors="replace"))
+    if not messages:
+        return jsonify(error="The sample conversation could not be parsed."), 500
+
+    STATE["files"].append(
+        {"name": SAMPLE_PATH.name, "messages": messages, "format": "whatsapp"}
+    )
+    STATE["model"] = None
+    STATE["identity"] = None
+    STATE["index"] = None
+    return jsonify(added=[SAMPLE_PATH.name], **sender_payload())
 
 
 @app.post("/api/remove")

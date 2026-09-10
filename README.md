@@ -6,36 +6,6 @@ A predictive keyboard and chat partner built from your own message history.
 Add a chat export, pick which sender is you, and TTYS models how you write, then
 suggests your next word as you type and answers as you would.
 
-Everything runs on your machine. No API key, no account, no upload.
-
-```
-you type   ill book the            you type   tues
-suggests   pitch  whole  dark      suggests   tuesday
-
-you say    who's sorting the pitch then
-replies    ill book the pitch, same place 7pm
-```
-
-## Privacy
-
-This reads private conversations, most of which involve other people, so the
-design assumes that data must never leave the machine it was exported on.
-
-- **Nothing is written to disk.** Uploads are read straight into memory, parsed,
-  and dropped when the process exits or you press Start over. There is no
-  database, no cache and no session file.
-- **Nothing is logged.** Message text never reaches a log line.
-- **One network destination exists in the whole codebase**, `127.0.0.1:11434`,
-  which is the local model running on your own machine. There is no cloud
-  fallback, deliberately, so there is no setting to leave switched on by
-  mistake.
-- **No chat data is in this repository.** Exports are gitignored, and every
-  example in this README and in the app comes from `samples/sample_chat.txt`, a
-  fabricated conversation between four invented people.
-
-Cloning this repository gives you the code and the fictional sample. It gives
-you nothing about anyone's real conversations.
-
 ## Try it
 
 ```bash
@@ -157,3 +127,23 @@ Measured on a real 972 KB WhatsApp export and a 8 MB iMessage export.
   and the n-gram fallback is not good enough to ship in its place.
 - Chat quality depends on the local model. `qwen2.5:7b` holds a voice across a
   long answer where `llama3.2:3b` invents details.
+  
+## Privacy
+
+This reads private conversations, most of which involve other people, so the
+design assumes that data must never leave the machine it was exported on.
+
+- **Nothing is written to disk.** Uploads are read straight into memory, parsed,
+  and dropped when the process exits or you press Start over. There is no
+  database, no cache and no session file.
+- **Nothing is logged.** Message text never reaches a log line.
+- **One network destination exists in the whole codebase**, `127.0.0.1:11434`,
+  which is the local model running on your own machine. There is no cloud
+  fallback, deliberately, so there is no setting to leave switched on by
+  mistake.
+- **No chat data is in this repository.** Exports are gitignored, and every
+  example in this README and in the app comes from `samples/sample_chat.txt`, a
+  fabricated conversation between four invented people.
+
+Cloning this repository gives you the code and the fictional sample. It gives
+you nothing about anyone's real conversations.
